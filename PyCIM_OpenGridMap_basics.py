@@ -59,6 +59,22 @@ node_load = ConnectivityNode(name='node_load')
 node_load.UUID = str(uuid.uuid1())
 dictionary[node_load.UUID]= node_load
 
+#_________________________________________________________
+#_____________________ Base Voltage ______________________
+#_________________________________________________________
+#creates the neccessary base voltages
+#In this case it's simulated a transmission line of 110 kV
+#and a distribution line of 44 kV
+#This objects (BaseVoltage) are used when the equipments has not nomVoltage attribute
+#and it is required the voltage to simulate these equipment in Simulink
+BaseV_110 = BaseVoltage(110000)
+BaseV_110.UUID = str(uuid.uuid1())
+dictionary[BaseV_110.UUID]= BaseV_110
+
+BaseV_44 = BaseVoltage(44000)
+BaseV_44.UUID = str(uuid.uuid1())
+dictionary[BaseV_44.UUID]= BaseV_44
+
 
 #_________________________________________________________
 #_____________________ Source ____________________________
@@ -68,16 +84,18 @@ dictionary[node_load.UUID]= node_load
 #equipments. Each equipment has its own terminal to get a connection
 #with the connectivity node.
 
-#create terminal that connect the source to the node_source
-ter_source = Terminal(name= 'ter_source', ConnectivityNode= node_source)
-#create a UUID for the ter_source instance
-ter_source.UUID = str(uuid.uuid1())
-
 #create the Energy Source instance which models a network equivalent
 #the phases specified can also be ABC
 source = EnergySource(phases='ABCN',name='source', x=0.01, r=0.01, 
 	activePower=5000000, nominalVoltage=110000, voltageAngle=0.0)
 source.UUID = str(uuid.uuid1())
+
+#create terminal that connect the source to the node_source
+#with the ConnectivityNode attribute refers to the node
+#with the _ConductingEquipment attribute refers to the equipment
+ter_source = Terminal(name= 'ter_source', ConnectivityNode= node_source, ConductingEquipment=source)
+#create a UUID for the ter_source instance
+ter_source.UUID = str(uuid.uuid1())
 
 #save the instances in the dictionary with UUID as 'key'
 dictionary[source.UUID] = source
@@ -92,7 +110,10 @@ dictionary[ter_source.UUID]= ter_source
 #each line require 2 terminals as it's connected in 2 sides
 
 #______________________ Transmission _____________________
-#initially create the terminals (with UUID, name and respective CN) related to the line
+
+#create the terminals (with UUID, name and respective CN) related to the line
+#in this case the relation between the terminal and the conducting equipment is
+#is defined in the transmission line object, but can be the other way around also.
 ter_source_tl = Terminal(name='ter_source_tl', ConnectivityNode=node_source)
 ter_source_tl.UUID = str(uuid.uuid1())
 ter_tl_HV = Terminal(name='ter_tl_HV', ConnectivityNode=node_HV)
@@ -102,7 +123,6 @@ ter_tl_HV.UUID = str(uuid.uuid1())
 Transmission = ACLineSegment(name='Transmission', r=0.3257, x=0.3153, r0=0.5336, 
 	x0=0.88025, length=100, phases='ABCN', Terminals=[ter_source_tl, ter_tl_HV])
 Transmission.UUID = str(uuid.uuid1())
-#Transmission._BaseVoltage = BaseV_4160
 
 #put the instances in the dictionary
 dictionary[Transmission.UUID]= Transmission
@@ -111,17 +131,18 @@ dictionary[ter_tl_HV.UUID]= ter_tl_HV
 
 #_____________________ Distribution _______________________
 
-#initially create the terminals (with UUID, name and respective CN) related to the line
-ter_LV_dl = Terminal(name='ter_LV_dl', ConnectivityNode=node_LV)
-ter_LV_dl.UUID = str(uuid.uuid1())
-ter_dl_LV = Terminal(name='ter_dl_LV', ConnectivityNode=node_load)
-ter_dl_LV.UUID = str(uuid.uuid1())
-
 #create the line with its parameters and UUID
 Distribution = ACLineSegment(name='Distribution', r=0.3257, x=0.3153, r0=0.5336, 
-	x0=0.88025, length=10, phases='ABCN', Terminals=[ter_LV_dl, ter_dl_LV])
+	x0=0.88025, length=10, phases='ABCN')
 Distribution.UUID = str(uuid.uuid1())
-#Distribution._BaseVoltage = BaseV_4160
+
+#in this case the relation between terminal and line is defined in the terminals
+#to show that this it's also possible, but can be the other way around also.
+#create the terminals (with UUID, name and respective CN) related to the line
+ter_LV_dl = Terminal(name='ter_LV_dl', ConnectivityNode=node_LV, ConductingEquipment=Distribution)
+ter_LV_dl.UUID = str(uuid.uuid1())
+ter_dl_LV = Terminal(name='ter_dl_LV', ConnectivityNode=node_load, ConductingEquipment=Distribution)
+ter_dl_LV.UUID = str(uuid.uuid1())
 
 #put the instances in the dictionary
 dictionary[Distribution.UUID]= Distribution
@@ -136,14 +157,6 @@ dictionary[ter_dl_LV.UUID]= ter_dl_LV
 #The 2 transformer windings are contained in a 
 #powertransformer instance
 
-#create terminal related to the HV winding
-ter_HV = Terminal(name= 'ter_HV', ConnectivityNode= node_HV)
-ter_HV.UUID = str(uuid.uuid1())
-#create terminal related to the LV winding
-ter_LV = Terminal(name= 'ter_LV', ConnectivityNode= node_LV)
-ter_LV.UUID = str(uuid.uuid1())
-
-
 #creates HV winding
 HV_winding = TransformerWinding(name='HV_winding', phases='ABCN', connectionType='Yn',
      windingType= 'primary', ratedU=110000, ratedS=5000000, x=1.0, r=1.0)
@@ -153,12 +166,22 @@ should be entered on the primary (high voltage) winding."""
 
 #creates LV winding
 LV_winding = TransformerWinding(name='LV_winding', phases='ABCN', connectionType='Yn',
-     windingType= 'secondaty', ratedU=480, ratedS=500)
+     windingType= 'secondaty', ratedU=44000, ratedS=5000000)
 LV_winding.UUID = str(uuid.uuid1())
+
 #creates the Power Transformer object, which contain the windings
 Transformer = PowerTransformer(name='Transformer', TransformerWindings = [HV_winding,LV_winding])
 Transformer.UUID = str(uuid.uuid1())
 
+#create terminal related to the HV winding
+ter_HV = Terminal(name= 'ter_HV', ConnectivityNode= node_HV, ConductingEquipment=HV_winding)
+ter_HV.UUID = str(uuid.uuid1())
+#create terminal related to the LV winding
+ter_LV = Terminal(name= 'ter_LV', ConnectivityNode= node_LV, ConductingEquipment=LV_winding)
+ter_LV.UUID = str(uuid.uuid1())
+
+dictionary[ter_HV.UUID] = ter_HV
+dictionary[ter_LV.UUID] = ter_LV
 dictionary[HV_winding.UUID] = HV_winding
 dictionary[LV_winding.UUID] = LV_winding
 dictionary[Transformer.UUID] = Transformer
@@ -167,13 +190,14 @@ dictionary[Transformer.UUID] = Transformer
 #_____________________ Load _____________________________
 #_________________________________________________________
 
-ter_load = Terminal(name='ter_load', ConnectivityNode=node_load)
-ter_load.UUID = str(uuid.uuid1())
-
 #create the load with its parameters and UUID
-load = EnergyConsumer(name='load', phases='ABCN', 
-	Terminals=[ter_load], pfixed=1000000, qfixed=200000)
+load = EnergyConsumer(name='load', phases='ABCN', pfixed=1000000, qfixed=200000)
 load.UUID = str(uuid.uuid1())
+#set the base voltage of the load
+load._BaseVoltage = BaseV_44
+
+ter_load = Terminal(name='ter_load', ConnectivityNode=node_load, ConductingEquipment=load)
+ter_load.UUID = str(uuid.uuid1())
 
 #put the objects in the dictionary for cimwrite
 dictionary[ter_load.UUID]= ter_load
